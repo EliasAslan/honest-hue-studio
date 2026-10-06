@@ -1,0 +1,1 @@
+CREATE POLICY "No direct visitor access" ON public.fitness_records FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
