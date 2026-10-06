@@ -1,15 +1,538 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useEffect,useState } from 'react';
-import { z } from 'zod';
-import { LineChart,Line,XAxis,YAxis,Tooltip,ResponsiveContainer,CartesianGrid,BarChart,Bar } from 'recharts';
-import { toast } from 'sonner';
-import { Plus,Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription } from '@/components/ui/dialog';
-import { useFitness } from '@/components/fitness/provider';
-import { PageTitle } from '@/components/fitness/shell';
-import { ProfileDialog } from '@/components/fitness/forms';
-import { dayKey,weekKey,weightStats,type Measurement,type Daily,type WorkoutLog } from '@/lib/fitness';
-export const Route=createFileRoute('/progress')({validateSearch:z.object({profile:z.boolean().optional()}),head:()=>({meta:[{title:'Benjamin’s Progress — BEN. Sustain'},{name:'description',content:'Real weight and waist trends, workout consistency, daily activity and recovery from Benjamin’s private fitness journal.'},{property:'og:title',content:'Benjamin’s Progress — BEN. Sustain'},{property:'og:description',content:'See the bigger picture through honest measurements and consistent habits.'},{property:'og:type',content:'website'},{name:'twitter:card',content:'summary_large_image'}]}),component:Progress});
-function Progress(){const search=Route.useSearch();const navigate=Route.useNavigate();const {records,profile,save,saving,date}=useFitness();const [profileOpen,setProfileOpen]=useState(search.profile??false);useEffect(()=>{if(search.profile)setProfileOpen(true);},[search.profile]);const [entry,setEntry]=useState<'weight'|'measurement'|null>(null);const [entryDate,setEntryDate]=useState('');const [weight,setWeight]=useState('');const [measures,setMeasures]=useState<Measurement>({});const [period,setPeriod]=useState<'30'|'90'|'all'>('all');const stats=weightStats(records);const now=date?new Date(date+'T12:00:00'):null;const thisWeek=now?weekKey(now):'';const workouts=records.filter(r=>r.kind==='workout'&&(r.payload as WorkoutLog).finished);const weeklyWorkouts=workouts.filter(r=>r.record_date>=thisWeek).length;const daily=records.filter(r=>r.kind==='daily');const weekDaily=daily.filter(r=>r.record_date>=thisWeek);const activity=weekDaily.filter(r=>(r.payload as Daily).steps!==undefined);const averageSteps=activity.length?Math.round(activity.reduce((s,r)=>s+((r.payload as Daily).steps??0),0)/activity.length):undefined;const sleep=weekDaily.filter(r=>(r.payload as Daily).sleep!==undefined);const averageSleep=sleep.length?sleep.reduce((s,r)=>s+((r.payload as Daily).sleep??0),0)/sleep.length:undefined;const waistPoints=records.filter(r=>r.kind==='measurement'&&(r.payload as Measurement).waist!==undefined).sort((a,b)=>a.record_date.localeCompare(b.record_date)).map(r=>({date:r.record_date,value:(r.payload as Measurement).waist}));const waistLatest=waistPoints.at(-1)?.value;const waistChange=waistPoints.length>1&&waistLatest!==undefined?waistLatest-(waistPoints[0]?.value??0):undefined;const cutoff=now&&period!=='all'?dayKey(new Date(now.getTime()-Number(period)*86400000)):'';const chartPoints=stats.points.filter(p=>p.date>=cutoff).map((p,i,arr)=>{const recent=arr.slice(0,i+1).filter(v=>new Date(p.date+'T12:00:00').getTime()-new Date(v.date+'T12:00:00').getTime()<=6*86400000);return {...p,trend:recent.reduce((s,v)=>s+v.value,0)/recent.length};});const openEntry=(kind:'weight'|'measurement')=>{setEntry(kind);setEntryDate(date||dayKey());setWeight('');setMeasures({});};const submit=async()=>{if(entry==='weight'&&(!Number(weight)||Number(weight)>500)){toast.error('Enter a valid weight in kilograms.');return;}if(entry==='measurement'&&!Object.values(measures).some(v=>v!==undefined&&v>0)){toast.error('Enter at least one measurement.');return;}if(!entry||!entryDate)return;try{await save(entry,entry==='weight'?{weight:Number(weight)}:measures,entryDate,entryDate);toast.success('Entry saved to your journal');setEntry(null);}catch{toast.error('Could not save this entry.');}};const chart=(points:{date:string;value?:number|undefined;trend?:number|undefined}[],trend=false)=>points.length?<div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><LineChart data={points} margin={{top:15,right:20,left:0,bottom:10}}><CartesianGrid stroke="var(--border)" vertical={false}/><XAxis dataKey="date" tick={{fill:'var(--muted-foreground)',fontSize:10}} tickFormatter={v=>v.slice(5)} minTickGap={40}/><YAxis domain={['auto','auto']} width={42} tick={{fill:'var(--muted-foreground)',fontSize:10}}/><Tooltip contentStyle={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:6,fontSize:12}}/><Line type="monotone" dataKey="value" name={trend?'Weigh-in · kg':'Waist · cm'} stroke={trend?'var(--muted-foreground)':'var(--primary)'} strokeWidth={2} dot={{r:3}} isAnimationActive={false}/>{trend&&<Line type="monotone" dataKey="trend" name="7-day average · kg" stroke="var(--primary)" strokeWidth={3} dot={false} isAnimationActive={false}/>}</LineChart></ResponsiveContainer></div>:<div className="empty-state"><strong>A first entry, not a perfect starting point.</strong><span>Record a measurement whenever you’re ready.</span></div>;let recommendation='A few weeks of entries will make your check-in more useful. Start with repeatable habits and comfortable training.';if(stats.points.length>=4){const span=(new Date(stats.points.at(-1)?.date??'').getTime()-new Date(stats.points[0]?.date ?? '').getTime())/86400000;const change=stats.change??0;const rate=span>0?change/(span/7):0;const highFatigue=weekDaily.some(r=>(r.payload as Daily).fatigue==='High');if(span>=14&&rate<-((stats.current??0)*.01))recommendation='Weight is dropping relatively quickly. Consider slowing the rate, keeping meals nourishing and prioritizing recovery. Do not push harder if performance or energy is falling.';else if(highFatigue)recommendation='High fatigue was recorded this week. Consider an easier session or extra rest, and review sleep and meal consistency.';else if(span>=21&&Math.abs(change)<.3)recommendation='Weight has been fairly stable across several weeks. If fat loss remains your goal, consider a small increase in comfortable walking or a gentle review of portions.';else if(span>=14&&change<0&&weeklyWorkouts>=2)recommendation='Weight is gradually moving down and training is consistent. Continue the current plan while keeping recovery comfortable.';}const recordsForTable=records.filter(r=>r.kind==='weight'||r.kind==='measurement');return <><PageTitle eyebrow="Benjamin’s progress" title="Look at the" accent="bigger picture."><p>Trends over snapshots. Strength over exhaustion. Your recorded history, without a made-up score.</p></PageTitle><div className="container content-section"><div className="toolbar"><Button variant="athletic" onClick={()=>openEntry('weight')}><Plus/>Log weight</Button><Button variant="outline" onClick={()=>openEntry('measurement')}><Plus/>Measurements</Button><Button variant="ghost" onClick={()=>setProfileOpen(true)}><Settings/>Your profile</Button></div><div className="stats-grid">{[['Latest weight',stats.current!==undefined?`${stats.current.toFixed(1)} kg`:'—',stats.change!==undefined?`${stats.change>0?'+':''}${stats.change.toFixed(1)} kg since first entry`:'No weight recorded'],['Latest waist',waistLatest!==undefined?`${waistLatest.toFixed(1)} cm`:'—',waistChange!==undefined?`${waistChange>0?'+':''}${waistChange.toFixed(1)} cm since first entry`:'No waist recorded'],['Training this week',`${weeklyWorkouts} / 3`,'Main sessions · fourth optional'],['Average sleep',averageSleep!==undefined?`${averageSleep.toFixed(1)} h`:'—',`${sleep.length} recorded nights this week`]].map(([label,value,caption])=><div key={label}><p className="eyebrow">{label}</p><div className="stat-number">{value}</div><p className="stat-caption">{caption}</p></div>)}</div><div className="progress-grid"><div><section className="progress-section"><div className="section-top"><h2>Weight trend</h2><div className="segment">{(['30','90','all'] as const).map(p=><Button size="sm" variant={period===p?'selected':'nav'} key={p} onClick={()=>setPeriod(p)}>{p==='all'?'All time':`${p} days`}</Button>)}</div></div>{chart(chartPoints,true)}<p>{stats.trend!==undefined?`Average of entries across the latest recorded 7-day window: ${stats.trend.toFixed(1)} kg. `:''}Day-to-day changes often reflect water and digestion. Compare averages across weeks; daily weighing is optional.</p></section><section className="progress-section"><h2>Waist trend</h2>{chart(waistPoints.filter(p=>p.date>=cutoff))}<p>Measure with the same technique and conditions each time. Other measurements are optional.</p></section><section className="progress-section"><h2>Activity</h2>{activity.length?<><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={[...activity].reverse().map(r=>({date:r.record_date,steps:(r.payload as Daily).steps}))}><XAxis dataKey="date" tick={{fill:'var(--muted-foreground)',fontSize:10}} tickFormatter={v=>v.slice(5)}/><YAxis tick={{fill:'var(--muted-foreground)',fontSize:10}} width={45}/><Tooltip contentStyle={{background:'var(--card)',border:'1px solid var(--border)'}}/><Bar dataKey="steps" fill="var(--primary)" radius={[3,3,0,0]} isAnimationActive={false}/></BarChart></ResponsiveContainer></div><p>{averageSteps?.toLocaleString()} steps on average across {activity.length} recorded days this week. {profile.stepTarget?`Your target is ${profile.stepTarget.toLocaleString()} steps.`:'Keep recording to establish your baseline.'}</p></>:<div className="empty-state"><strong>Find your normal first.</strong><span>Log steps from Home to establish a comfortable baseline.</span></div>}</section></div><aside><section className="progress-section"><h2>Your weekly check-in</h2><p>{recommendation}</p><div className="history-row"><span>Workouts</span><strong>{weeklyWorkouts} completed</strong></div><div className="history-row"><span>Food habits checked</span><strong>{weekDaily.filter(r=>(r.payload as Daily).eat).length} days</strong></div><div className="history-row"><span>Recovery checked</span><strong>{weekDaily.filter(r=>(r.payload as Daily).recover).length} days</strong></div><p className="mt-4">Based on your logged entries only. Unrecorded days are not assumed to be successes or failures.</p></section><section className="progress-section"><h2>Strength practice</h2><p>{workouts.length} completed sessions in total.</p>{workouts.length?exercisesSummary(workouts):<p className="mt-3">Previous sets, repetitions and best performances appear after your first workout.</p>}</section><section className="progress-section"><h2>Your direction</h2><p>{profile.goal||'Lose body fat while maintaining or building strength. Add your personal goal whenever you’re ready.'}</p>{profile.startingWeight!==undefined&&<p className="mt-3">Starting weight: {profile.startingWeight} kg</p>}<Button variant="link" className="mt-3 p-0" onClick={()=>setProfileOpen(true)}>Personalize your plan <Settings/></Button></section></aside></div><section className="content-section"><div className="section-top"><h2>Measurement history</h2><span>{recordsForTable.length} entries</span></div>{recordsForTable.length?recordsForTable.map(r=><div className="history-row" key={r.id}><span>{r.record_date}</span><span>{r.kind==='weight'?`${(r.payload as {weight:number}).weight} kg`:Object.entries(r.payload).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${v} cm`).join(' · ')}</span></div>):<div className="empty-state"><strong>Nothing recorded yet.</strong><span>Your history stays here as the plan evolves.</span></div>}</section></div><Dialog open={!!entry} onOpenChange={o=>{if(!o)setEntry(null);}}><DialogContent><DialogHeader><DialogTitle>{entry==='weight'?'Log bodyweight':'Log measurements'}</DialogTitle><DialogDescription>Use similar conditions each time. All measurements are optional.</DialogDescription></DialogHeader><div className="form-grid"><label className="field wide">Date<input type="date" max={date||dayKey()} value={entryDate} onChange={e=>setEntryDate(e.target.value)}/></label>{entry==='weight'?<label className="field wide">Weight · kg<input autoFocus type="number" min="1" max="500" step=".1" value={weight} onChange={e=>setWeight(e.target.value)}/></label>:(['waist','chest','arm','thigh','height'] as const).map(k=><label className="field" key={k}>{k.charAt(0).toUpperCase()+k.slice(1)} · cm<input type="number" min="1" max="300" step=".1" value={measures[k]??''} onChange={e=>setMeasures(v=>({...v,[k]:e.target.value?Number(e.target.value):undefined}))}/></label>)}</div><p className="modal-note">Saving another entry on the same date updates that day’s reading. Earlier dates stay unchanged.</p><Button variant="athletic" disabled={saving} onClick={submit}>{saving?'Saving…':'Save entry'}</Button></DialogContent></Dialog>{profileOpen&&<ProfileDialog open={profileOpen} onClose={()=>{setProfileOpen(false);if(search.profile)navigate({search:{}});}}/>}</>}
-function exercisesSummary(workouts:ReturnType<typeof useFitness>['records']){const best=new Map<string,{reps:number;resistance:number}>();for(const r of workouts)for(const e of (r.payload as WorkoutLog).exercises)for(const s of e.sets){if(!s.complete)continue;const key=e.variation;const old=best.get(key);if(!old||s.resistance>old.resistance||(s.resistance===old.resistance&&s.reps>old.reps))best.set(key,{reps:s.reps,resistance:s.resistance});}return [...best].map(([name,b])=><div className="history-row" key={name}><span>{name}</span><strong>{b.reps}{name.toLowerCase().includes('plank')?' s':' reps'}{b.resistance?` · ${b.resistance} kg`:''}</strong></div>);}
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  BarChart,
+  Bar,
+} from "recharts";
+import { toast } from "sonner";
+import { Plus, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { useFitness } from "@/components/fitness/provider";
+import { PageTitle } from "@/components/fitness/shell";
+import { ProfileDialog } from "@/components/fitness/forms";
+import {
+  dayKey,
+  weekKey,
+  weightStats,
+  type Measurement,
+  type Daily,
+  type WorkoutLog,
+} from "@/lib/fitness";
+export const Route = createFileRoute("/progress")({
+  validateSearch: z.object({ profile: z.boolean().optional() }),
+  head: () => ({
+    meta: [
+      { title: "Benjamin’s Progress — BEN. Sustain" },
+      {
+        name: "description",
+        content:
+          "Real weight and waist trends, workout consistency, daily activity and recovery from Benjamin’s private fitness journal.",
+      },
+      { property: "og:title", content: "Benjamin’s Progress — BEN. Sustain" },
+      {
+        property: "og:description",
+        content: "See the bigger picture through honest measurements and consistent habits.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Progress,
+});
+function Progress() {
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { records, profile, save, saving, date } = useFitness();
+  const [profileOpen, setProfileOpen] = useState(search.profile ?? false);
+  useEffect(() => {
+    if (search.profile) setProfileOpen(true);
+  }, [search.profile]);
+  const [entry, setEntry] = useState<"weight" | "measurement" | null>(null);
+  const [entryDate, setEntryDate] = useState("");
+  const [weight, setWeight] = useState("");
+  const [measures, setMeasures] = useState<Measurement>({});
+  const [period, setPeriod] = useState<"30" | "90" | "all">("all");
+  const stats = weightStats(records);
+  const now = date ? new Date(date + "T12:00:00") : null;
+  const thisWeek = now ? weekKey(now) : "";
+  const workouts = records.filter(
+    (r) => r.kind === "workout" && (r.payload as WorkoutLog).finished,
+  );
+  const weeklyWorkouts = workouts.filter((r) => r.record_date >= thisWeek).length;
+  const daily = records.filter((r) => r.kind === "daily");
+  const weekDaily = daily.filter((r) => r.record_date >= thisWeek);
+  const activity = weekDaily.filter((r) => (r.payload as Daily).steps !== undefined);
+  const averageSteps = activity.length
+    ? Math.round(
+        activity.reduce((s, r) => s + ((r.payload as Daily).steps ?? 0), 0) / activity.length,
+      )
+    : undefined;
+  const sleep = weekDaily.filter((r) => (r.payload as Daily).sleep !== undefined);
+  const averageSleep = sleep.length
+    ? sleep.reduce((s, r) => s + ((r.payload as Daily).sleep ?? 0), 0) / sleep.length
+    : undefined;
+  const waistPoints = records
+    .filter((r) => r.kind === "measurement" && (r.payload as Measurement).waist !== undefined)
+    .sort((a, b) => a.record_date.localeCompare(b.record_date))
+    .map((r) => ({ date: r.record_date, value: (r.payload as Measurement).waist }));
+  const waistLatest = waistPoints.at(-1)?.value;
+  const waistChange =
+    waistPoints.length > 1 && waistLatest !== undefined
+      ? waistLatest - (waistPoints[0]?.value ?? 0)
+      : undefined;
+  const cutoff =
+    now && period !== "all" ? dayKey(new Date(now.getTime() - Number(period) * 86400000)) : "";
+  const chartPoints = stats.points
+    .filter((p) => p.date >= cutoff)
+    .map((p, i, arr) => {
+      const recent = arr
+        .slice(0, i + 1)
+        .filter(
+          (v) =>
+            new Date(p.date + "T12:00:00").getTime() - new Date(v.date + "T12:00:00").getTime() <=
+            6 * 86400000,
+        );
+      return { ...p, trend: recent.reduce((s, v) => s + v.value, 0) / recent.length };
+    });
+  const openEntry = (kind: "weight" | "measurement") => {
+    setEntry(kind);
+    setEntryDate(date || dayKey());
+    setWeight("");
+    setMeasures({});
+  };
+  const submit = async () => {
+    if (entry === "weight" && (!Number(weight) || Number(weight) > 500)) {
+      toast.error("Enter a valid weight in kilograms.");
+      return;
+    }
+    if (entry === "measurement" && !Object.values(measures).some((v) => v !== undefined && v > 0)) {
+      toast.error("Enter at least one measurement.");
+      return;
+    }
+    if (!entry || !entryDate) return;
+    try {
+      await save(
+        entry,
+        entry === "weight" ? { weight: Number(weight) } : measures,
+        entryDate,
+        entryDate,
+      );
+      toast.success("Entry saved to your journal");
+      setEntry(null);
+    } catch {
+      toast.error("Could not save this entry.");
+    }
+  };
+  const chart = (
+    points: { date: string; value?: number | undefined; trend?: number | undefined }[],
+    trend = false,
+  ) =>
+    points.length ? (
+      <div className="chart-wrap">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={points} margin={{ top: 15, right: 20, left: 0, bottom: 10 }}>
+            <CartesianGrid stroke="var(--border)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+              tickFormatter={(v) => v.slice(5)}
+              minTickGap={40}
+            />
+            <YAxis
+              domain={["auto", "auto"]}
+              width={42}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                fontSize: 12,
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="value"
+              name={trend ? "Weigh-in · kg" : "Waist · cm"}
+              stroke={trend ? "var(--muted-foreground)" : "var(--primary)"}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              isAnimationActive={false}
+            />
+            {trend && (
+              <Line
+                type="monotone"
+                dataKey="trend"
+                name="7-day average · kg"
+                stroke="var(--primary)"
+                strokeWidth={3}
+                dot={false}
+                isAnimationActive={false}
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    ) : (
+      <div className="empty-state">
+        <strong>A first entry, not a perfect starting point.</strong>
+        <span>Record a measurement whenever you’re ready.</span>
+      </div>
+    );
+  let recommendation =
+    "A few weeks of entries will make your check-in more useful. Start with repeatable habits and comfortable training.";
+  if (stats.points.length >= 4) {
+    const span =
+      (new Date(stats.points.at(-1)?.date ?? "").getTime() -
+        new Date(stats.points[0]?.date ?? "").getTime()) /
+      86400000;
+    const change = stats.change ?? 0;
+    const rate = span > 0 ? change / (span / 7) : 0;
+    const highFatigue = weekDaily.some((r) => (r.payload as Daily).fatigue === "High");
+    if (span >= 14 && rate < -((stats.current ?? 0) * 0.01))
+      recommendation =
+        "Weight is dropping relatively quickly. Consider slowing the rate, keeping meals nourishing and prioritizing recovery. Do not push harder if performance or energy is falling.";
+    else if (highFatigue)
+      recommendation =
+        "High fatigue was recorded this week. Consider an easier session or extra rest, and review sleep and meal consistency.";
+    else if (span >= 21 && Math.abs(change) < 0.3)
+      recommendation =
+        "Weight has been fairly stable across several weeks. If fat loss remains your goal, consider a small increase in comfortable walking or a gentle review of portions.";
+    else if (span >= 14 && change < 0 && weeklyWorkouts >= 2)
+      recommendation =
+        "Weight is gradually moving down and training is consistent. Continue the current plan while keeping recovery comfortable.";
+  }
+  const recordsForTable = records.filter((r) => r.kind === "weight" || r.kind === "measurement");
+  return (
+    <>
+      <PageTitle eyebrow="Benjamin’s progress" title="Look at the" accent="bigger picture.">
+        <p>
+          Trends over snapshots. Strength over exhaustion. Your recorded history, without a made-up
+          score.
+        </p>
+      </PageTitle>
+      <div className="container content-section">
+        <div className="toolbar">
+          <Button variant="athletic" onClick={() => openEntry("weight")}>
+            <Plus />
+            Log weight
+          </Button>
+          <Button variant="outline" onClick={() => openEntry("measurement")}>
+            <Plus />
+            Measurements
+          </Button>
+          <Button variant="ghost" onClick={() => setProfileOpen(true)}>
+            <Settings />
+            Your profile
+          </Button>
+        </div>
+        <div className="stats-grid">
+          {[
+            [
+              "Latest weight",
+              stats.current !== undefined ? `${stats.current.toFixed(1)} kg` : "—",
+              stats.change !== undefined
+                ? `${stats.change > 0 ? "+" : ""}${stats.change.toFixed(1)} kg since first entry`
+                : "No weight recorded",
+            ],
+            [
+              "Latest waist",
+              waistLatest !== undefined ? `${waistLatest.toFixed(1)} cm` : "—",
+              waistChange !== undefined
+                ? `${waistChange > 0 ? "+" : ""}${waistChange.toFixed(1)} cm since first entry`
+                : "No waist recorded",
+            ],
+            ["Training this week", `${weeklyWorkouts} / 3`, "Main sessions · fourth optional"],
+            [
+              "Average sleep",
+              averageSleep !== undefined ? `${averageSleep.toFixed(1)} h` : "—",
+              `${sleep.length} recorded nights this week`,
+            ],
+          ].map(([label, value, caption]) => (
+            <div key={label}>
+              <p className="eyebrow">{label}</p>
+              <div className="stat-number">{value}</div>
+              <p className="stat-caption">{caption}</p>
+            </div>
+          ))}
+        </div>
+        <div className="progress-grid">
+          <div>
+            <section className="progress-section">
+              <div className="section-top">
+                <h2>Weight trend</h2>
+                <div className="segment">
+                  {(["30", "90", "all"] as const).map((p) => (
+                    <Button
+                      size="sm"
+                      variant={period === p ? "selected" : "nav"}
+                      key={p}
+                      onClick={() => setPeriod(p)}
+                    >
+                      {p === "all" ? "All time" : `${p} days`}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {chart(chartPoints, true)}
+              <p>
+                {stats.trend !== undefined
+                  ? `Average of entries across the latest recorded 7-day window: ${stats.trend.toFixed(1)} kg. `
+                  : ""}
+                Day-to-day changes often reflect water and digestion. Compare averages across weeks;
+                daily weighing is optional.
+              </p>
+            </section>
+            <section className="progress-section">
+              <h2>Waist trend</h2>
+              {chart(waistPoints.filter((p) => p.date >= cutoff))}
+              <p>
+                Measure with the same technique and conditions each time. Other measurements are
+                optional.
+              </p>
+            </section>
+            <section className="progress-section">
+              <h2>Activity</h2>
+              {activity.length ? (
+                <>
+                  <div className="chart-wrap">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[...activity]
+                          .reverse()
+                          .map((r) => ({ date: r.record_date, steps: (r.payload as Daily).steps }))}
+                      >
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                          tickFormatter={(v) => v.slice(5)}
+                        />
+                        <YAxis
+                          tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                          width={45}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "var(--card)",
+                            border: "1px solid var(--border)",
+                          }}
+                        />
+                        <Bar
+                          dataKey="steps"
+                          fill="var(--primary)"
+                          radius={[3, 3, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p>
+                    {averageSteps?.toLocaleString()} steps on average across {activity.length}{" "}
+                    recorded days this week.{" "}
+                    {profile.stepTarget
+                      ? `Your target is ${profile.stepTarget.toLocaleString()} steps.`
+                      : "Keep recording to establish your baseline."}
+                  </p>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <strong>Find your normal first.</strong>
+                  <span>Log steps from Home to establish a comfortable baseline.</span>
+                </div>
+              )}
+            </section>
+          </div>
+          <aside>
+            <section className="progress-section">
+              <h2>Your weekly check-in</h2>
+              <p>{recommendation}</p>
+              <div className="history-row">
+                <span>Workouts</span>
+                <strong>{weeklyWorkouts} completed</strong>
+              </div>
+              <div className="history-row">
+                <span>Food habits checked</span>
+                <strong>{weekDaily.filter((r) => (r.payload as Daily).eat).length} days</strong>
+              </div>
+              <div className="history-row">
+                <span>Recovery checked</span>
+                <strong>{weekDaily.filter((r) => (r.payload as Daily).recover).length} days</strong>
+              </div>
+              <p className="mt-4">
+                Based on your logged entries only. Unrecorded days are not assumed to be successes
+                or failures.
+              </p>
+            </section>
+            <section className="progress-section">
+              <h2>Strength practice</h2>
+              <p>{workouts.length} completed sessions in total.</p>
+              {workouts.length ? (
+                exercisesSummary(workouts)
+              ) : (
+                <p className="mt-3">
+                  Previous sets, repetitions and best performances appear after your first workout.
+                </p>
+              )}
+            </section>
+            <section className="progress-section">
+              <h2>Your direction</h2>
+              <p>
+                {profile.goal ||
+                  "Lose body fat while maintaining or building strength. Add your personal goal whenever you’re ready."}
+              </p>
+              {profile.startingWeight !== undefined && (
+                <p className="mt-3">Starting weight: {profile.startingWeight} kg</p>
+              )}
+              <Button variant="link" className="mt-3 p-0" onClick={() => setProfileOpen(true)}>
+                Personalize your plan <Settings />
+              </Button>
+            </section>
+          </aside>
+        </div>
+        <section className="content-section">
+          <div className="section-top">
+            <h2>Measurement history</h2>
+            <span>{recordsForTable.length} entries</span>
+          </div>
+          {recordsForTable.length ? (
+            recordsForTable.map((r) => (
+              <div className="history-row" key={r.id}>
+                <span>{r.record_date}</span>
+                <span>
+                  {r.kind === "weight"
+                    ? `${(r.payload as { weight: number }).weight} kg`
+                    : Object.entries(r.payload)
+                        .filter(([, v]) => v !== undefined)
+                        .map(([k, v]) => `${k}: ${v} cm`)
+                        .join(" · ")}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">
+              <strong>Nothing recorded yet.</strong>
+              <span>Your history stays here as the plan evolves.</span>
+            </div>
+          )}
+        </section>
+      </div>
+      <Dialog
+        open={!!entry}
+        onOpenChange={(o) => {
+          if (!o) setEntry(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{entry === "weight" ? "Log bodyweight" : "Log measurements"}</DialogTitle>
+            <DialogDescription>
+              Use similar conditions each time. All measurements are optional.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="form-grid">
+            <label className="field wide">
+              Date
+              <input
+                type="date"
+                max={date || dayKey()}
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+              />
+            </label>
+            {entry === "weight" ? (
+              <label className="field wide">
+                Weight · kg
+                <input
+                  autoFocus
+                  type="number"
+                  min="1"
+                  max="500"
+                  step=".1"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                />
+              </label>
+            ) : (
+              (["waist", "chest", "arm", "thigh", "height"] as const).map((k) => (
+                <label className="field" key={k}>
+                  {k.charAt(0).toUpperCase() + k.slice(1)} · cm
+                  <input
+                    type="number"
+                    min="1"
+                    max="300"
+                    step=".1"
+                    value={measures[k] ?? ""}
+                    onChange={(e) =>
+                      setMeasures((v) => ({
+                        ...v,
+                        [k]: e.target.value ? Number(e.target.value) : undefined,
+                      }))
+                    }
+                  />
+                </label>
+              ))
+            )}
+          </div>
+          <p className="modal-note">
+            Saving another entry on the same date updates that day’s reading. Earlier dates stay
+            unchanged.
+          </p>
+          <Button variant="athletic" disabled={saving} onClick={submit}>
+            {saving ? "Saving…" : "Save entry"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      {profileOpen && (
+        <ProfileDialog
+          open={profileOpen}
+          onClose={() => {
+            setProfileOpen(false);
+            if (search.profile) navigate({ search: {} });
+          }}
+        />
+      )}
+    </>
+  );
+}
+function exercisesSummary(workouts: ReturnType<typeof useFitness>["records"]) {
+  const best = new Map<string, { reps: number; resistance: number }>();
+  for (const r of workouts)
+    for (const e of (r.payload as WorkoutLog).exercises)
+      for (const s of e.sets) {
+        if (!s.complete) continue;
+        const key = e.variation;
+        const old = best.get(key);
+        if (
+          !old ||
+          s.resistance > old.resistance ||
+          (s.resistance === old.resistance && s.reps > old.reps)
+        )
+          best.set(key, { reps: s.reps, resistance: s.resistance });
+      }
+  return [...best].map(([name, b]) => (
+    <div className="history-row" key={name}>
+      <span>{name}</span>
+      <strong>
+        {b.reps}
+        {name.toLowerCase().includes("plank") ? " s" : " reps"}
+        {b.resistance ? ` · ${b.resistance} kg` : ""}
+      </strong>
+    </div>
+  ));
+}

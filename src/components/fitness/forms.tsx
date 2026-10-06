@@ -1,8 +1,277 @@
-import { useState } from 'react';
-import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { useFitness } from './provider';
-import { type Habit, type Daily, type Profile, type Length } from '@/lib/fitness';
-import { toast } from 'sonner';
-export function HabitDialog({habit,onClose}:{habit:Habit|null;onClose:()=>void}){const {today,save,saving}=useFitness();const [draft,setDraft]=useState<Daily>(today);const change=(key:keyof Daily,value:Daily[keyof Daily])=>setDraft(d=>({...d,[key]:value}));const submit=async()=>{try{await save('daily',{...today,...draft});toast.success('Today’s entry saved');onClose();}catch{toast.error('Could not save. Please try again.');}};const numeric=(label:string,key:'steps'|'minutes'|'sleep',max:number)=><label className="field">{label}<input type="number" min="0" max={max} step={key==='sleep'?'.5':'1'} value={draft[key]??''} onChange={e=>change(key,e.target.value===''?undefined:Number(e.target.value))}/></label>;return <Dialog open={!!habit} onOpenChange={o=>{if(!o)onClose();}}><DialogContent><DialogHeader><DialogTitle>{habit==='move'?'Daily activity':habit==='eat'?'Food habits':'Recovery'}</DialogTitle><DialogDescription>Benjamin’s daily check-in</DialogDescription></DialogHeader><div className="modal-body"><div className="form-grid">{habit==='move'&&<>{numeric('Steps','steps',100000)}{numeric('Active minutes','minutes',1440)}<p className="modal-note wide">Start by recording your usual activity. Build a comfortable baseline before increasing your target.</p></>}{habit==='eat'&&<div className="wide">{([['protein','Protein with main meals'],['water','Mostly water or low-calorie drinks'],['produce','Fruit and vegetables'],['portions','Comfortable, reasonable portions'],['snacks','Kept calorie-dense snacks in moderation'],['alcohol','Limited or avoided alcohol']] as const).map(([key,label])=><label className="detail-checkbox" key={key}><input type="checkbox" checked={draft[key]??false} onChange={e=>change(key,e.target.checked)}/>{label}</label>)}</div>}{habit==='recover'&&<>{numeric('Sleep hours','sleep',24)}<label className="field">Fatigue<select value={draft.fatigue??''} onChange={e=>change('fatigue',e.target.value)}><option value="">Not recorded</option><option>Low</option><option>Moderate</option><option>High</option></select></label><label className="field wide">Soreness or pain notes<textarea value={draft.soreness??''} onChange={e=>change('soreness',e.target.value)} maxLength={300}/></label><p className="modal-note wide">Unusual or persistent pain is a reason to stop the relevant movement and seek appropriate professional advice.</p></>}</div><div className="form-actions"><Button variant="athletic" disabled={saving} onClick={submit}>{saving?'Saving…':'Save check-in'}</Button><Button variant="ghost" onClick={onClose}>Cancel</Button></div></div></DialogContent></Dialog>}
-export function ProfileDialog({open,onClose}:{open:boolean;onClose:()=>void}){const {profile,save,saving,key,restoreKey}=useFitness();const [draft,setDraft]=useState<Profile>(profile);const [showKey,setShowKey]=useState(false);const [incoming,setIncoming]=useState('');const change=(k:keyof Profile,v:Profile[keyof Profile])=>setDraft(p=>({...p,[k]:v}));const submit=async()=>{try{await save('profile',{...draft,startDate:profile.startDate});toast.success('Profile saved');onClose();}catch{toast.error('Could not save your profile.');}};return <Dialog open={open} onOpenChange={o=>{if(!o)onClose();}}><DialogContent><DialogHeader><DialogTitle>Benjamin’s profile</DialogTitle><DialogDescription>Your goals, your pace.</DialogDescription></DialogHeader><div className="modal-body"><div className="form-grid">{([['age','Age',120],['height','Height · cm',250],['startingWeight','Starting weight · kg',500],['stepTarget','Daily step target · optional',100000]] as const).map(([k,label,max])=><label className="field" key={k}>{label}<input type="number" min="1" max={max} step={k==='startingWeight'?'.1':'1'} value={draft[k]??''} onChange={e=>change(k,e.target.value?Number(e.target.value):undefined)}/></label>)}<label className="field wide">Personal goal<textarea maxLength={500} placeholder="Lose body fat while staying strong" value={draft.goal??''} onChange={e=>change('goal',e.target.value)}/></label><label className="field">Training experience<select value={draft.experience??'Beginner'} onChange={e=>change('experience',e.target.value)}><option>Beginner</option><option>Intermediate</option></select></label><label className="field">Preferred duration<select value={draft.duration??'Standard'} onChange={e=>change('duration',e.target.value as Length)}><option>Short</option><option>Standard</option><option>Long</option></select></label><label className="field wide">Available equipment<input maxLength={300} placeholder="None, or bands / pull-up bar…" value={draft.equipment??''} onChange={e=>change('equipment',e.target.value)}/></label><label className="field wide">Typical training days<input maxLength={100} placeholder="Monday, Wednesday, Friday" value={draft.days??''} onChange={e=>change('days',e.target.value)}/></label></div><div className="form-actions"><Button variant="athletic" onClick={submit} disabled={saving}>{saving?'Saving…':'Save profile'}</Button></div><details className="mt-6"><summary className="text-sm cursor-pointer">Private journal access</summary><p className="modal-note">Your journal is linked to this browser, not an account. Save your private key somewhere safe before clearing browser storage. Anyone with this key can access your records. To continue on another device, enter the same key there.</p><Button variant="outline" size="sm" onClick={()=>setShowKey(!showKey)}>{showKey?'Hide key':'Reveal private key'}</Button>{showKey&&<p className="profile-key mt-3">{key}</p>}<label className="field mt-4">Restore an existing journal<input type="password" autoComplete="off" value={incoming} onChange={e=>setIncoming(e.target.value)}/></label><Button className="mt-3" variant="outline" size="sm" onClick={()=>{try{restoreKey(incoming);toast.success('Journal restored');onClose();}catch{toast.error('That key is not valid.');}}}>Restore journal</Button></details></div></DialogContent></Dialog>}
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useFitness } from "./provider";
+import { type Habit, type Daily, type Profile, type Length } from "@/lib/fitness";
+import { toast } from "sonner";
+export function HabitDialog({ habit, onClose }: { habit: Habit | null; onClose: () => void }) {
+  const { today, save, saving } = useFitness();
+  const [draft, setDraft] = useState<Daily>(today);
+  const change = (key: keyof Daily, value: Daily[keyof Daily]) =>
+    setDraft((d) => ({ ...d, [key]: value }));
+  const submit = async () => {
+    try {
+      await save("daily", { ...today, ...draft });
+      toast.success("Today’s entry saved");
+      onClose();
+    } catch {
+      toast.error("Could not save. Please try again.");
+    }
+  };
+  const numeric = (label: string, key: "steps" | "minutes" | "sleep", max: number) => (
+    <label className="field">
+      {label}
+      <input
+        type="number"
+        min="0"
+        max={max}
+        step={key === "sleep" ? ".5" : "1"}
+        value={draft[key] ?? ""}
+        onChange={(e) => change(key, e.target.value === "" ? undefined : Number(e.target.value))}
+      />
+    </label>
+  );
+  return (
+    <Dialog
+      open={!!habit}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {habit === "move" ? "Daily activity" : habit === "eat" ? "Food habits" : "Recovery"}
+          </DialogTitle>
+          <DialogDescription>Benjamin’s daily check-in</DialogDescription>
+        </DialogHeader>
+        <div className="modal-body">
+          <div className="form-grid">
+            {habit === "move" && (
+              <>
+                {numeric("Steps", "steps", 100000)}
+                {numeric("Active minutes", "minutes", 1440)}
+                <p className="modal-note wide">
+                  Start by recording your usual activity. Build a comfortable baseline before
+                  increasing your target.
+                </p>
+              </>
+            )}
+            {habit === "eat" && (
+              <div className="wide">
+                {(
+                  [
+                    ["protein", "Protein with main meals"],
+                    ["water", "Mostly water or low-calorie drinks"],
+                    ["produce", "Fruit and vegetables"],
+                    ["portions", "Comfortable, reasonable portions"],
+                    ["snacks", "Kept calorie-dense snacks in moderation"],
+                    ["alcohol", "Limited or avoided alcohol"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label className="detail-checkbox" key={key}>
+                    <input
+                      type="checkbox"
+                      checked={draft[key] ?? false}
+                      onChange={(e) => change(key, e.target.checked)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+            {habit === "recover" && (
+              <>
+                {numeric("Sleep hours", "sleep", 24)}
+                <label className="field">
+                  Fatigue
+                  <select
+                    value={draft.fatigue ?? ""}
+                    onChange={(e) => change("fatigue", e.target.value)}
+                  >
+                    <option value="">Not recorded</option>
+                    <option>Low</option>
+                    <option>Moderate</option>
+                    <option>High</option>
+                  </select>
+                </label>
+                <label className="field wide">
+                  Soreness or pain notes
+                  <textarea
+                    value={draft.soreness ?? ""}
+                    onChange={(e) => change("soreness", e.target.value)}
+                    maxLength={300}
+                  />
+                </label>
+                <p className="modal-note wide">
+                  Unusual or persistent pain is a reason to stop the relevant movement and seek
+                  appropriate professional advice.
+                </p>
+              </>
+            )}
+          </div>
+          <div className="form-actions">
+            <Button variant="athletic" disabled={saving} onClick={submit}>
+              {saving ? "Saving…" : "Save check-in"}
+            </Button>
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { profile, save, saving, key, restoreKey } = useFitness();
+  const [draft, setDraft] = useState<Profile>(profile);
+  const [showKey, setShowKey] = useState(false);
+  const [incoming, setIncoming] = useState("");
+  const change = (k: keyof Profile, v: Profile[keyof Profile]) =>
+    setDraft((p) => ({ ...p, [k]: v }));
+  const submit = async () => {
+    try {
+      await save("profile", { ...draft, startDate: profile.startDate });
+      toast.success("Profile saved");
+      onClose();
+    } catch {
+      toast.error("Could not save your profile.");
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Benjamin’s profile</DialogTitle>
+          <DialogDescription>Your goals, your pace.</DialogDescription>
+        </DialogHeader>
+        <div className="modal-body">
+          <div className="form-grid">
+            {(
+              [
+                ["age", "Age", 120],
+                ["height", "Height · cm", 250],
+                ["startingWeight", "Starting weight · kg", 500],
+                ["stepTarget", "Daily step target · optional", 100000],
+              ] as const
+            ).map(([k, label, max]) => (
+              <label className="field" key={k}>
+                {label}
+                <input
+                  type="number"
+                  min="1"
+                  max={max}
+                  step={k === "startingWeight" ? ".1" : "1"}
+                  value={draft[k] ?? ""}
+                  onChange={(e) => change(k, e.target.value ? Number(e.target.value) : undefined)}
+                />
+              </label>
+            ))}
+            <label className="field wide">
+              Personal goal
+              <textarea
+                maxLength={500}
+                placeholder="Lose body fat while staying strong"
+                value={draft.goal ?? ""}
+                onChange={(e) => change("goal", e.target.value)}
+              />
+            </label>
+            <label className="field">
+              Training experience
+              <select
+                value={draft.experience ?? "Beginner"}
+                onChange={(e) => change("experience", e.target.value)}
+              >
+                <option>Beginner</option>
+                <option>Intermediate</option>
+              </select>
+            </label>
+            <label className="field">
+              Preferred duration
+              <select
+                value={draft.duration ?? "Standard"}
+                onChange={(e) => change("duration", e.target.value as Length)}
+              >
+                <option>Short</option>
+                <option>Standard</option>
+                <option>Long</option>
+              </select>
+            </label>
+            <label className="field wide">
+              Available equipment
+              <input
+                maxLength={300}
+                placeholder="None, or bands / pull-up bar…"
+                value={draft.equipment ?? ""}
+                onChange={(e) => change("equipment", e.target.value)}
+              />
+            </label>
+            <label className="field wide">
+              Typical training days
+              <input
+                maxLength={100}
+                placeholder="Monday, Wednesday, Friday"
+                value={draft.days ?? ""}
+                onChange={(e) => change("days", e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="form-actions">
+            <Button variant="athletic" onClick={submit} disabled={saving}>
+              {saving ? "Saving…" : "Save profile"}
+            </Button>
+          </div>
+          <details className="mt-6">
+            <summary className="text-sm cursor-pointer">Private journal access</summary>
+            <p className="modal-note">
+              Your journal is linked to this browser, not an account. Save your private key
+              somewhere safe before clearing browser storage. Anyone with this key can access your
+              records. To continue on another device, enter the same key there.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setShowKey(!showKey)}>
+              {showKey ? "Hide key" : "Reveal private key"}
+            </Button>
+            {showKey && <p className="profile-key mt-3">{key}</p>}
+            <label className="field mt-4">
+              Restore an existing journal
+              <input
+                type="password"
+                autoComplete="off"
+                value={incoming}
+                onChange={(e) => setIncoming(e.target.value)}
+              />
+            </label>
+            <Button
+              className="mt-3"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                try {
+                  restoreKey(incoming);
+                  toast.success("Journal restored");
+                  onClose();
+                } catch {
+                  toast.error("That key is not valid.");
+                }
+              }}
+            >
+              Restore journal
+            </Button>
+          </details>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
