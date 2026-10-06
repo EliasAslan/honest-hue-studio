@@ -980,3 +980,43 @@ nav a {
     transition: none !important;
   }
 }
+
+.coach-card,
+.coach-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 26px 28px;
+}
+.coach-card h2,
+.coach-panel h2 {
+  margin-top: 7px;
+  font-size: 32px;
+  line-height: 1;
+}
+.coach-card p:last-child,
+.coach-panel p:last-child {
+  margin-top: 10px;
+  max-width: 700px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+.coach-status {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.coach-status.positive { color: var(--primary); }
+.coach-status.attention { color: var(--destructive); }
+.coach-status.neutral { color: var(--muted-foreground); }
+@media (max-width: 700px) {
+  .coach-card,
+  .coach-panel { align-items: flex-start; flex-direction: column; }
+}
