@@ -10,6 +10,7 @@ import {
   plannedBlock,
   weekKey,
   weightStats,
+  coachingInsight,
   type Habit,
   type WorkoutLog,
   type Daily,
@@ -50,6 +51,7 @@ function Home() {
       (r.payload as WorkoutLog).finished,
   );
   const weights = weightStats(records);
+  const insight = now ? coachingInsight(records, profile, now) : coachingInsight(records, profile);
   const toggle = async (h: Habit) => {
     try {
       await save("daily", { ...today, [h]: !today[h] });
@@ -158,6 +160,16 @@ function Home() {
               )}
             </div>
           ))}
+        </div>
+      </section>
+      <section className="container content-section">
+        <div className="coach-card">
+          <div>
+            <p className="eyebrow">Your coach</p>
+            <h2>{insight.title}</h2>
+            <p>{insight.body}</p>
+          </div>
+          <span className={`coach-status ${insight.tone}`}>{insight.tone === "positive" ? "On track" : insight.tone === "attention" ? "Adjust" : "Next step"}</span>
         </div>
       </section>
       <section className="training-band">
