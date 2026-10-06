@@ -377,6 +377,59 @@ nav a {
   gap: 10px;
   margin-bottom: 25px;
 }
+.schedule {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 28px;
+  margin-bottom: 28px;
+}
+.schedule-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.schedule-head h2 { font-size: 28px; margin-top: 5px; }
+.schedule-actions { display: flex; gap: 6px; }
+.week-schedule { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.schedule-day {
+  height: 86px;
+  min-width: 0;
+  padding: 9px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--card);
+}
+.schedule-day > span { font-size: 10px; text-transform: uppercase; color: var(--muted-foreground); }
+.schedule-day > strong { font: 25px var(--font-display); }
+.schedule-day > small { min-height: 13px; font-size: 8px; text-transform: uppercase; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.schedule-day > small svg { width: 13px; height: 13px; color: var(--primary); }
+.schedule-day.today { border-color: var(--primary); }
+.schedule-day.today > span { color: var(--primary); }
+.schedule-day.selected { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+.schedule-day.selected > span, .schedule-day.selected > small { color: var(--band-muted); }
+.schedule-day.complete:not(.selected) { background: var(--secondary); }
+.day-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 28px;
+  padding: 26px;
+  margin-bottom: 35px;
+  background: var(--card);
+  border-left: 4px solid var(--primary);
+}
+.day-guide h2 { font-size: 32px; margin-top: 6px; }
+.day-guide-title > p:last-child { max-width: 620px; margin-top: 8px; font-size: 13px; line-height: 1.7; color: var(--muted-foreground); }
+.day-guide-controls { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.day-guide-controls .segment button { height: 48px; flex-direction: column; gap: 0; line-height: 1.2; }
+.day-guide-controls .segment small { font-size: 8px; opacity: .7; }
+.rhythm-list { display: grid; gap: 0; margin-top: 20px; border-top: 1px solid var(--border); }
+.rhythm-list span { display: grid; grid-template-columns: 28px 1fr; gap: 9px; padding-block: 11px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); }
+.rhythm-list strong { color: var(--primary); }
 .segment {
   display: inline-flex;
   gap: 4px;
@@ -851,6 +904,20 @@ nav a {
   .page-heading h1 {
     font-size: 46px;
   }
+  .page-heading { display: none; }
+  .schedule { margin-top: 0; padding-bottom: 20px; margin-bottom: 20px; }
+  .schedule-head { align-items: center; margin-bottom: 14px; }
+  .schedule-head h2 { font-size: 23px; }
+  .schedule-actions button { width: 34px; height: 34px; }
+  .week-schedule { gap: 4px; }
+  .schedule-day { height: 77px; padding: 7px 1px; gap: 3px; }
+  .schedule-day > strong { font-size: 22px; }
+  .schedule-day > small { font-size: 7px; }
+  .day-guide { grid-template-columns: 1fr; align-items: stretch; padding: 19px 17px; gap: 18px; margin-inline: -20px; margin-bottom: 28px; }
+  .day-guide h2 { font-size: 27px; }
+  .day-guide-controls .segment { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
+  .day-guide-controls .segment button { min-width: 0; padding-inline: 6px; }
+  .day-guide-controls > button { min-height: 46px; }
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -877,8 +944,16 @@ nav a {
     padding: 5px 3px;
   }
   .sets-table input[type="number"] {
-    width: 60px;
+    width: 100%;
   }
+  .sets-table thead { display: none; }
+  .sets-table, .sets-table tbody { display: block; }
+  .sets-table tr { display: grid; grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 7px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .sets-table td { display: flex; flex-direction: column; justify-content: end; min-width: 0; padding: 0; }
+  .sets-table td::before { content: attr(data-label); min-height: 17px; font-size: 8px; text-transform: uppercase; color: var(--muted-foreground); }
+  .sets-table input[type="number"] { min-width: 0; height: 40px; }
+  .sets-table input[type="checkbox"] { width: 22px; height: 22px; margin-block: 9px; }
+  .workout-aside { margin-top: 8px; }
   .exercise-heading h3 {
     font-size: 17px;
   }

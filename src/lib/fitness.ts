@@ -69,14 +69,26 @@ export const durations: Record<Length, string> = {
   Standard: "35–45 min",
   Long: "55–60 min",
 };
-export function plannedBlock(date: Date, startDate?: string): "A" | "B" {
-  const n = startDate
+export type WorkoutDayKind = "main" | "optional" | "recovery";
+export interface WorkoutDayPlan {
+  kind: WorkoutDayKind;
+  block?: "A" | "B";
+}
+export function workoutDayPlan(date: Date, startDate?: string): WorkoutDayPlan {
+  const weekday = date.getDay();
+  const slot = weekday === 1 ? 0 : weekday === 3 ? 1 : weekday === 5 ? 2 : weekday === 6 ? 3 : -1;
+  if (slot < 0) return { kind: "recovery" };
+  const weeks = startDate
     ? Math.abs(
         differenceInCalendarWeeks(date, new Date(startDate + "T12:00:00"), { weekStartsOn: 1 }),
       )
     : 0;
-  const b = date.getDay() === 3 || date.getDay() === 6;
-  return b !== (n % 2 === 1) ? "B" : "A";
+  const startsWithB = weeks % 2 === 1;
+  const block = (slot % 2 === 0) !== startsWithB ? "A" : "B";
+  return { kind: weekday === 6 ? "optional" : "main", block };
+}
+export function plannedBlock(date: Date, startDate?: string): "A" | "B" {
+  return workoutDayPlan(date, startDate).block ?? workoutDayPlan(startOfWeek(date, { weekStartsOn: 1 }), startDate).block ?? "A";
 }
 export interface Exercise {
   id: string;

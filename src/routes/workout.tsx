@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { addDays, addWeeks, format, isBefore, isSameDay, startOfWeek } from "date-fns";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, RotateCcw } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,11 +11,11 @@ import {
   exercises,
   durations,
   dayKey,
+  workoutDayPlan,
   type Length,
   type WorkoutLog,
   type ExerciseLog,
 } from "@/lib/fitness";
-import trainingImage from "@/assets/home-training.jpg";
 export const Route = createFileRoute("/workout")({
   validateSearch: z.object({ block: z.enum(["A", "B"]).optional() }),
   head: () => ({
@@ -38,13 +40,19 @@ export const Route = createFileRoute("/workout")({
 function Workout() {
   const search = Route.useSearch();
   const { records, profile, today, save, saving, date } = useFitness();
-  const [block, setBlock] = useState<"A" | "B">(search.block ?? "A");
+  const currentDate = date ? new Date(date + "T12:00:00") : new Date();
+  const [selectedDate, setSelectedDate] = useState(date || dayKey());
+  const selected = new Date(selectedDate + "T12:00:00");
+  const selectedPlan = workoutDayPlan(selected, profile.startDate);
+  const [block, setBlock] = useState<"A" | "B">(search.block ?? selectedPlan.block ?? "A");
   const [length, setLength] = useState<Length>(profile.duration ?? "Standard");
   const [active, setActive] = useState(false);
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
   const [sessionKey, setSessionKey] = useState("");
   const [finished, setFinished] = useState(false);
   const [rest, setRest] = useState(0);
+  const weekStart = startOfWeek(selected, { weekStartsOn: 1 });
+  const week = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart.getTime()]);
   useEffect(() => {
     if (!active && search.block) setBlock(search.block);
   }, [search.block, active]);
@@ -52,11 +60,23 @@ function Workout() {
     if (!active && profile.duration) setLength(profile.duration);
   }, [profile.duration, active]);
   useEffect(() => {
+    if (!active && date && !selectedDate) setSelectedDate(date);
+  }, [date, selectedDate, active]);
+  useEffect(() => {
     if (!rest) return;
     const id = setInterval(() => setRest((v) => Math.max(0, v - 1)), 1000);
     return () => clearInterval(id);
   }, [rest]);
   const history = records.filter((r) => r.kind === "workout" && (r.payload as WorkoutLog).finished);
+  const recordsForDate = (value: string) =>
+    records.filter((r) => r.kind === "workout" && r.record_date === value);
+  const selectDay = (day: Date) => {
+    if (active) return;
+    const key = dayKey(day);
+    const plan = workoutDayPlan(day, profile.startDate);
+    setSelectedDate(key);
+    if (plan.block) setBlock(plan.block);
+  };
   const start = () => {
     setLogs(
       exercises[block].map((e) => ({
@@ -85,12 +105,12 @@ function Workout() {
       await save(
         "workout",
         { block, duration: length, exercises: logs, finished: complete },
-        date || dayKey(),
+        selectedDate,
         sessionKey,
       );
-      if (!profile.startDate) await save("profile", { ...profile, startDate: date || dayKey() });
+      if (!profile.startDate) await save("profile", { ...profile, startDate: selectedDate });
       if (complete) {
-        await save("daily", { ...today, train: true });
+        if (selectedDate === date) await save("daily", { ...today, train: true });
         setFinished(true);
         setActive(false);
         toast.success("Workout complete. A small win that counts.");
@@ -108,44 +128,82 @@ function Workout() {
         </p>
       </PageTitle>
       <div className="container content-section">
-        <div className="toolbar">
-          <div className="segment">
-            {(["A", "B"] as const).map((b) => (
-              <Button
-                variant={block === b ? "selected" : "nav"}
-                key={b}
-                disabled={active}
-                onClick={() => setBlock(b)}
-              >
-                Full Body {b}
+        <section className="schedule" aria-label="Weekly workout schedule">
+          <div className="schedule-head">
+            <div className="min-w-0">
+              <p className="eyebrow">Training schedule</p>
+              <h2>{format(weekStart, "MMMM yyyy")}</h2>
+            </div>
+            <div className="schedule-actions">
+              <Button variant="outline" size="icon" disabled={active} aria-label="Previous week" onClick={() => selectDay(addWeeks(selected, -1))}>
+                <ArrowLeft />
               </Button>
-            ))}
-          </div>
-          <div className="segment">
-            {(["Short", "Standard", "Long"] as const).map((l) => (
-              <Button
-                variant={length === l ? "selected" : "nav"}
-                key={l}
-                disabled={active}
-                onClick={() => setLength(l)}
-              >
-                {l}
+              <Button variant="outline" size="icon" disabled={active} aria-label="Return to today" onClick={() => selectDay(currentDate)}>
+                <CalendarDays />
               </Button>
-            ))}
+              <Button variant="outline" size="icon" disabled={active} aria-label="Next week" onClick={() => selectDay(addWeeks(selected, 1))}>
+                <ArrowRight />
+              </Button>
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">{durations[length]}</span>
-        </div>
+          <div className="week-schedule">
+            {week.map((day) => {
+              const key = dayKey(day);
+              const plan = workoutDayPlan(day, profile.startDate);
+              const dayRecords = recordsForDate(key);
+              const complete = dayRecords.some((r) => (r.payload as WorkoutLog).finished);
+              const draft = dayRecords.some((r) => !(r.payload as WorkoutLog).finished);
+              const past = isBefore(day, currentDate) && !isSameDay(day, currentDate);
+              const status = complete ? "Done" : draft ? "Saved" : plan.kind === "recovery" ? "Rest" : past && plan.kind === "main" ? "Missed" : plan.kind === "optional" ? "Optional" : `Body ${plan.block}`;
+              return (
+                <Button
+                  key={key}
+                  variant="ghost"
+                  className={`schedule-day ${key === selectedDate ? "selected" : ""} ${isSameDay(day, currentDate) ? "today" : ""} ${complete ? "complete" : ""}`}
+                  disabled={active}
+                  onClick={() => selectDay(day)}
+                  aria-label={`${format(day, "EEEE d MMMM")}, ${status}`}
+                  aria-pressed={key === selectedDate}
+                >
+                  <span>{format(day, "EEEEE")}</span>
+                  <strong>{format(day, "d")}</strong>
+                  <small>{complete ? <Check aria-hidden="true" /> : status}</small>
+                </Button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="day-guide">
+          <div className="day-guide-title">
+            <p className="eyebrow">{selectedDate === date ? "Today" : format(selected, "EEEE · d MMMM")}</p>
+            <h2>{selectedPlan.kind === "recovery" ? "Recovery day" : `${selectedPlan.kind === "optional" ? "Optional · " : ""}Full Body ${block}`}</h2>
+            <p>{selectedPlan.kind === "recovery" ? "No strength session is planned. An easy walk and good recovery keep the week moving." : selectedPlan.kind === "optional" ? "Only train if you feel recovered. Skipping this session is part of the plan, not falling behind." : "Your planned full-body session. Keep two good reps in reserve and finish feeling capable."}</p>
+          </div>
+          {selectedPlan.kind !== "recovery" ? (
+            <div className="day-guide-controls">
+              <div className="segment" aria-label="Workout duration">
+                {(["Short", "Standard", "Long"] as const).map((l) => (
+                  <Button variant={length === l ? "selected" : "nav"} key={l} disabled={active} onClick={() => setLength(l)}>
+                    {l}<small>{durations[l]}</small>
+                  </Button>
+                ))}
+              </div>
+              {!active && <Button variant="athletic" onClick={start}>{finished ? "Start another" : "Start workout"}<ArrowRight /></Button>}
+            </div>
+          ) : (
+            <Button variant="outline" disabled={active} onClick={() => { setBlock(workoutDayPlan(addDays(selected, 1), profile.startDate).block ?? block); }}>
+              <RotateCcw /> Keep recovery first
+            </Button>
+          )}
+        </section>
         <div className="workout-layout">
           <div>
             <div className="section-top">
               <h2>Full Body {block}</h2>
-              {!active ? (
-                <Button variant="athletic" onClick={start}>
-                  {finished ? "Start another session" : "Start session"}
-                </Button>
-              ) : (
+              {active ? (
                 <span>{rest ? `Rest · ${rest}s` : "Session in progress"}</span>
-              )}
+              ) : <span>{selectedPlan.kind === "recovery" ? "Preview" : durations[length]}</span>}
             </div>
             <div className="exercise-row">
               <p className="eyebrow">
@@ -233,8 +291,8 @@ function Workout() {
                         <tbody>
                           {log.sets.map((s, j) => (
                             <tr key={j}>
-                              <td>{j + 1}</td>
-                              <td>
+                              <td data-label="Set">{j + 1}</td>
+                              <td data-label={e.id === "core-b" ? "Seconds" : "Reps"}>
                                 <input
                                   aria-label={`${e.name} set ${j + 1} reps`}
                                   type="number"
@@ -251,7 +309,7 @@ function Workout() {
                                   }
                                 />
                               </td>
-                              <td>
+                              <td data-label="Added kg">
                                 <input
                                   aria-label={`${e.name} set ${j + 1} resistance`}
                                   type="number"
@@ -272,7 +330,7 @@ function Workout() {
                                   }
                                 />
                               </td>
-                              <td>
+                              <td data-label="Done">
                                 <input
                                   type="checkbox"
                                   aria-label={`${e.name} set ${j + 1} complete`}
@@ -347,37 +405,16 @@ function Workout() {
             )}
           </div>
           <aside className="workout-aside">
+            <p className="eyebrow">How to approach today</p>
             <h3>Consistency, not intensity.</h3>
-            <p className="mt-3">
-              A short workout counts. Start with one controlled set of each movement; add a second
-              if time allows.
-            </p>
-            <img
-              src={trainingImage}
-              width={1200}
-              height={800}
-              loading="lazy"
-              alt="Bodyweight push-up in a simple home training space"
-            />
-            <h3>The weekly rhythm</h3>
-            <ul>
-              <li>Monday · A</li>
-              <li>Wednesday · B</li>
-              <li>Friday · A</li>
-              <li>Saturday · B, optional</li>
-            </ul>
-            <p>
-              Start the following week with B. If you use different days, keep a rest day between
-              main sessions and alternate A/B.
-            </p>
+            <p className="mt-3">A short workout counts. Start with one controlled set of each movement; add a second if time allows.</p>
+            <div className="rhythm-list">
+              <span><strong>01</strong> Move with control</span>
+              <span><strong>02</strong> Keep two reps in reserve</span>
+              <span><strong>03</strong> Rest 60–90 seconds</span>
+            </div>
             {profile.days && <p className="mt-3">Your preferred days: {profile.days}</p>}
-            <p className="mt-4">
-              Rest around 60–90 seconds between sets. Take longer if your breathing or technique
-              needs it.
-            </p>
-            <Button variant="outline" className="mt-4" onClick={() => setRest(rest ? 0 : 75)}>
-              {rest ? `Skip rest · ${rest}s` : "Start 75s rest"}
-            </Button>
+            <Button variant="outline" className="mt-4" onClick={() => setRest(rest ? 0 : 75)}>{rest ? `Skip rest · ${rest}s` : "Start 75s rest"}</Button>
           </aside>
         </div>
         <section className="content-section">
