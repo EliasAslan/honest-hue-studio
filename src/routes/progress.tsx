@@ -29,6 +29,7 @@ import {
   dayKey,
   weekKey,
   weightStats,
+  coachingInsight,
   type Measurement,
   type Daily,
   type WorkoutLog,
@@ -69,6 +70,7 @@ function Progress() {
   const [period, setPeriod] = useState<"30" | "90" | "all">("all");
   const stats = weightStats(records);
   const now = date ? new Date(date + "T12:00:00") : null;
+  const insight = coachingInsight(records, profile, now ?? new Date());
   const thisWeek = now ? weekKey(now) : "";
   const workouts = records.filter(
     (r) => r.kind === "workout" && (r.payload as WorkoutLog).finished,
@@ -272,6 +274,14 @@ function Progress() {
             </div>
           ))}
         </div>
+        <section className="coach-panel">
+          <div>
+            <p className="eyebrow">What the data suggests</p>
+            <h2>{insight.title}</h2>
+            <p>{insight.body}</p>
+          </div>
+          <span className={`coach-status ${insight.tone}`}>{insight.tone === "positive" ? "Positive signal" : insight.tone === "attention" ? "Recovery check" : "Keep going"}</span>
+        </section>
         <div className="progress-grid">
           <div>
             <section className="progress-section">
