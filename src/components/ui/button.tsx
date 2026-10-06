@@ -9,6 +9,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        athletic: "bg-primary text-primary-foreground hover:bg-accent-deep rounded-full font-semibold",
+        nav: "rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary",
+        selected: "rounded-full bg-foreground text-background",
+        check: "border-2 border-border bg-card hover:border-primary text-primary",
         default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
