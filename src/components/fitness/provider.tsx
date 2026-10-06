@@ -1,3 +1,4 @@
+import type React from "react";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { readFitness, saveFitness } from "@/lib/fitness.functions";
@@ -19,7 +20,9 @@ interface FitnessContext {
   key: string;
   restoreKey: (key: string) => void;
 }
-const Context = createContext<FitnessContext | null>(null);
+// Keep one context instance across hot reloads so consumers and provider always match.
+const g = globalThis as unknown as { __fitnessCtx?: React.Context<FitnessContext | null> };
+const Context = (g.__fitnessCtx ??= createContext<FitnessContext | null>(null));
 export function FitnessProvider({ children }: { children: ReactNode }) {
   const [key, setKey] = useState("");
   const [date, setDate] = useState("");
