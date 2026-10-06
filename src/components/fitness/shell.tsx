@@ -1,0 +1,88 @@
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { useFitness } from "./provider";
+import { Settings } from "lucide-react";
+export function FitnessHeader() {
+  return (
+    <header className="site-header">
+      <div className="container header-inner">
+        <Link to="/" className="brand" aria-label="Benjamin home">
+          <span>
+            BEN<span className="text-primary">.</span>
+          </span>
+          <small>SUSTAIN</small>
+        </Link>
+        <nav aria-label="Main navigation">
+          {(
+            [
+              ["/", "Home"],
+              ["/workout", "Workout"],
+              ["/progress", "Progress"],
+              ["/guide", "Guide"],
+            ] as const
+          ).map(([to, label]) => (
+            <Button key={to} asChild variant="nav" size="sm">
+              <Link
+                to={to}
+                activeProps={{ className: "nav-active" }}
+                activeOptions={{ exact: true }}
+              >
+                {label}
+              </Link>
+            </Button>
+          ))}
+        </nav>
+        <Button asChild variant="selected" size="icon" aria-label="Benjamin’s profile">
+          <Link to="/progress" search={{ profile: true }}>
+            <Settings size={16} />
+          </Link>
+        </Button>
+      </div>
+    </header>
+  );
+}
+export function FitnessFooter() {
+  return (
+    <footer className="container site-footer">
+      <span className="brand-footer">
+        BEN<span className="text-primary">.</span> SUSTAIN
+      </span>
+      <span>One person. One pace. Keep going.</span>
+    </footer>
+  );
+}
+export function Status() {
+  const { error, loading } = useFitness();
+  return error ? (
+    <div role="alert" className="status-banner">
+      {error}
+    </div>
+  ) : loading ? (
+    <div className="loading-line" aria-label="Loading private journal" />
+  ) : null;
+}
+export function PageTitle({
+  eyebrow,
+  title,
+  accent,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  accent: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="page-heading">
+      <div className="container">
+        <p className="eyebrow">{eyebrow}</p>
+        <h1>
+          {title}
+          <br />
+          <span className="text-primary">{accent}</span>
+        </h1>
+        {children}
+      </div>
+    </section>
+  );
+}

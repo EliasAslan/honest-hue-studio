@@ -1,0 +1,110 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Search, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PageTitle } from "@/components/fitness/shell";
+import { faqs } from "@/lib/fitness";
+export const Route = createFileRoute("/guide")({
+  head: () => ({
+    meta: [
+      { title: "Guide — BEN. Sustain" },
+      {
+        name: "description",
+        content:
+          "Practical answers about sustainable fat loss, safe strength training, protein, walking, weight trends and recovery.",
+      },
+      { property: "og:title", content: "Guide — BEN. Sustain" },
+      {
+        property: "og:description",
+        content: "Understand your training and build the confidence to do it independently.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Guide,
+});
+function Guide() {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All topics");
+  const filtered = faqs.filter(
+    ([cat, q, a]) =>
+      (category === "All topics" || cat === category) &&
+      `${q} ${a}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  return (
+    <>
+      <PageTitle eyebrow="A little know-how" title="Learn the basics." accent="Own your progress.">
+        <p>Simple answers you can use, in and out of a workout. No tricks, no extremes.</p>
+      </PageTitle>
+      <div className="container content-section">
+        <div className="guide-layout">
+          <aside className="guide-categories">
+            {[
+              "All topics",
+              "Training",
+              "Fat loss",
+              "Progress",
+              "Activity",
+              "Nutrition",
+              "Recovery",
+            ].map((c) => (
+              <Button
+                key={c}
+                variant={category === c ? "selected" : "nav"}
+                onClick={() => setCategory(c)}
+              >
+                {c}
+              </Button>
+            ))}
+          </aside>
+          <section>
+            <label className="field">
+              <span className="flex items-center gap-2">
+                <Search size={14} /> Find an answer
+              </span>
+              <input
+                className="search-input"
+                type="search"
+                placeholder="Weight, push-ups, protein…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
+            <div className="mt-5">
+              {filtered.length ? (
+                filtered.map(([cat, q, a]) => (
+                  <details className="faq-item" key={q}>
+                    <p className="eyebrow">{cat}</p>
+                    <summary>
+                      {q}
+                      <Plus size={16} className="shrink-0 text-primary" />
+                    </summary>
+                    <p>{a}</p>
+                  </details>
+                ))
+              ) : (
+                <div className="empty-state">
+                  <strong>No answers match that search.</strong>
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      setSearch("");
+                      setCategory("All topics");
+                    }}
+                  >
+                    See all topics
+                  </Button>
+                </div>
+              )}
+            </div>
+            <p className="modal-note mt-8">
+              General educational guidance, not medical advice. For unusual or persistent pain,
+              significant fatigue, or health concerns, seek a qualified professional.
+            </p>
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}
