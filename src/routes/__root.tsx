@@ -10,7 +10,8 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
-import appCss from "../styles.css?url";
+// Import the stylesheet through Vite so GitHub Pages receives the correct base-path asset URL.
+import "../styles.css";
 import { FitnessProvider } from "@/components/fitness/provider";
 import { FitnessHeader, FitnessFooter, Status } from "@/components/fitness/shell";
 import { Toaster } from "sonner";
@@ -95,10 +96,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap",
-      },
-      {
-        rel: "stylesheet",
-        href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
