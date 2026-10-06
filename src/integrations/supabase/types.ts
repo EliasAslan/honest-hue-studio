@@ -14,7 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      fitness_records: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          owner_hash: string
+          payload: Json
+          record_date: string
+          record_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          owner_hash: string
+          payload?: Json
+          record_date: string
+          record_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          owner_hash?: string
+          payload?: Json
+          record_date?: string
+          record_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
