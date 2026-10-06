@@ -325,3 +325,114 @@ export function weightStats(records: FitnessRecord[]) {
     change: points.length > 1 ? (latest?.value ?? 0) - (points[0]?.value ?? 0) : undefined,
   };
 }
+
+export interface CoachingInsight {
+  title: string;
+  body: string;
+  tone: "positive" | "neutral" | "attention";
+}
+
+export function recentDaily(records: FitnessRecord[], days = 7) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - (days - 1));
+  const cutoffKey = dayKey(cutoff);
+  return records.filter((r) => r.kind === "daily" && r.record_date >= cutoffKey);
+}
+
+export function weeklyTrainingCount(records: FitnessRecord[], date = new Date()) {
+  const start = weekKey(date);
+  return records.filter(
+    (r) =>
+      r.kind === "workout" &&
+      r.record_date >= start &&
+      (r.payload as WorkoutLog).finished,
+  ).length;
+}
+
+export function coachingInsight(
+  records: FitnessRecord[],
+  profile: Profile,
+  date = new Date(),
+): CoachingInsight {
+  const weekStart = weekKey(date);
+  const weekDaily = records.filter((r) => r.kind === "daily" && r.record_date >= weekStart);
+  const completed = weeklyTrainingCount(records, date);
+  const fatigue = weekDaily.some((r) => (r.payload as Daily).fatigue === "High");
+  const sleepEntries = weekDaily
+    .map((r) => (r.payload as Daily).sleep)
+    .filter((v): v is number => typeof v === "number");
+  const avgSleep = sleepEntries.length
+    ? sleepEntries.reduce((a, b) => a + b, 0) / sleepEntries.length
+    : undefined;
+  const weights = weightStats(records);
+  const first = weights.points[0]?.value;
+  const latest = weights.current;
+  const change = latest !== undefined && first !== undefined ? latest - first : undefined;
+
+  if (fatigue || (avgSleep !== undefined && avgSleep < 6.5)) {
+    return {
+      title: "Protect recovery",
+      body: "Fatigue or short sleep showed up in your recent entries. Keep the next session controlled; more effort is not automatically more progress.",
+      tone: "attention",
+    };
+  }
+  if (completed >= 3 && change !== undefined && change < 0) {
+    return {
+      title: "The plan is working",
+      body: `You have completed ${completed} main sessions this week and your recorded weight is moving down. Keep the same habits before changing anything.`,
+      tone: "positive",
+    };
+  }
+  if (completed >= 3) {
+    return {
+      title: "Training is consistent",
+      body: "Three main sessions are done. Keep food and activity habits steady and let the next few weeks reveal the trend.",
+      tone: "positive",
+    };
+  }
+  if (completed > 0) {
+    return {
+      title: `${completed} session${completed === 1 ? "" : "s"} done`,
+      body: "You do not need to make up missed workouts. Complete the next planned session and keep the effort repeatable.",
+      tone: "neutral",
+    };
+  }
+  return {
+    title: "Start with one win",
+    body: profile.duration
+      ? `Your default session is ${profile.duration.toLowerCase()}. A completed short session is still a successful training day.`
+      : "Start with the shortest session you can complete comfortably. The goal is to create a repeatable week, not a perfect first workout.",
+    tone: "neutral",
+  };
+}
+
+export function exerciseTarget(
+  records: FitnessRecord[],
+  exerciseId: string,
+  variation: string,
+): { reps: number; resistance: number; text: string } | undefined {
+  const history = records
+    .filter((r) => r.kind === "workout" && (r.payload as WorkoutLog).finished)
+    .sort((a, b) => b.record_date.localeCompare(a.record_date));
+  for (const record of history) {
+    const log = (record.payload as WorkoutLog).exercises.find(
+      (e) => e.id === exerciseId && e.variation === variation,
+    );
+    if (!log) continue;
+    const completed = log.sets.filter((s) => s.complete && s.reps > 0);
+    if (!completed.length) continue;
+    const average = Math.round(completed.reduce((sum, s) => sum + s.reps, 0) / completed.length);
+    const max = Math.max(...completed.map((s) => s.reps));
+    const resistance = Math.max(...completed.map((s) => s.resistance || 0));
+    const next = max < 12 ? max + 1 : max;
+    return {
+      reps: next,
+      resistance,
+      text:
+        max >= 12
+          ? `Last time: ${average} average reps. You reached the top of the range — keep the variation controlled or progress it slightly.`
+          : `Last time: ${average} average reps. Aim for about ${next} reps with the same controlled technique.`,
+    };
+  }
+  return undefined;
+}
